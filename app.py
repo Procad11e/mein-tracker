@@ -8,7 +8,9 @@ st.set_page_config(page_title="Mein Tracker", page_icon="🍏", layout="centered
 
 # KI vorbereiten
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash', generation_config={"response_mime_type": "application/json"})
+
+# HIER IST DIE ÄNDERUNG: Wir nutzen "gemini-1.5-flash-latest"
+model = genai.GenerativeModel('gemini-1.5-flash-latest', generation_config={"response_mime_type": "application/json"})
 
 # Speicher vorbereiten
 heute = datetime.now().strftime("%Y-%m-%d")
