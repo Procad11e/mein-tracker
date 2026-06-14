@@ -6,11 +6,9 @@ import pandas as pd
 
 st.set_page_config(page_title="Mein Tracker", page_icon="🍏", layout="centered")
 
-# KI vorbereiten
+# KI vorbereiten (Wir nutzen jetzt das universelle "gemini-pro" Modell)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-# HIER IST DIE ÄNDERUNG: Wir nutzen "gemini-1.5-flash-latest"
-model = genai.GenerativeModel('gemini-1.5-flash-latest', generation_config={"response_mime_type": "application/json"})
+model = genai.GenerativeModel('gemini-pro')
 
 # Speicher vorbereiten
 heute = datetime.now().strftime("%Y-%m-%d")
@@ -49,23 +47,32 @@ if st.button("Hinzufügen"):
     if user_input:
         with st.spinner("KI berechnet die Nährwerte..."):
             try:
+                # Strengerer Prompt für das Pro-Modell
                 prompt = f"""
                 Du bist ein professioneller Ernährungsberater. Schätze die Nährwerte für den folgenden Input ab.
                 Input: "{user_input}"
-                Antworte EXAKT mit einem JSON-Objekt.
+                Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Schreibe keinen Text davor oder danach.
                 Schlüssel: "beschreibung" (String), "kcal" (Integer), "protein" (Integer), "carbs" (Integer), "fett" (Integer).
                 """
                 
                 antwort = model.generate_content(prompt)
+                text = antwort.text
                 
-                clean_text = antwort.text.replace("```json", "").replace("```", "").strip()
-                werte = json.loads(clean_text)
+                # Kugelsicheres Auslesen der Daten (ignoriert alles, was kein JSON ist)
+                start = text.find('{')
+                end = text.rfind('}') + 1
                 
-                jetzt = datetime.now().strftime("%H:%M")
-                werte["uhrzeit"] = jetzt
-                
-                st.session_state.mahlzeiten.append(werte)
-                st.rerun()
+                if start != -1 and end != 0:
+                    clean_text = text[start:end]
+                    werte = json.loads(clean_text)
+                    
+                    jetzt = datetime.now().strftime("%H:%M")
+                    werte["uhrzeit"] = jetzt
+                    
+                    st.session_state.mahlzeiten.append(werte)
+                    st.rerun()
+                else:
+                    st.error("Fehler beim Lesen der KI-Antwort. Bitte versuche es noch einmal.")
                 
             except Exception as e:
                 st.error(f"Fehler: {e}")
