@@ -6,20 +6,60 @@ import pandas as pd
 
 st.set_page_config(page_title="Mein Tracker", page_icon="🍏", layout="centered")
 
-# KI vorbereiten (Wir nutzen jetzt das universelle "gemini-pro" Modell)
+# KI mit Schlüssel verbinden
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-pro')
 
-# Speicher vorbereiten
+# ==========================================
+# NEUE DENKWEISE: Automatische Modell-Suche
+# ==========================================
+# Die App sucht einmalig nach Modellen, die bei dir erlaubt sind, und merkt sich das.
+if "aktives_modell" not in st.session_state:
+    st.session_state.aktives_modell = None
+    try:
+        verfuegbar = [m for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if verfuegbar:
+            # Wir versuchen zuerst ein schnelles "Flash" oder starkes "Pro" Modell zu finden
+            for m in verfuegbar:
+                if 'flash' in m.name.lower():
+                    st.session_state.aktives_modell = m.name
+                    break
+            
+            # Falls kein Flash da ist, suchen wir nach Pro
+            if not st.session_state.aktives_modell:
+                for m in verfuegbar:
+                    if 'pro' in m.name.lower():
+                        st.session_state.aktives_modell = m.name
+                        break
+            
+            # Falls beides nicht da ist, nehmen wir einfach das allererste, das Text generieren kann
+            if not st.session_state.aktives_modell:
+                st.session_state.aktives_modell = verfuegbar[0].name
+                
+    except Exception as e:
+        st.error(f"Fehler bei der Kontaktaufnahme mit Google: {e}")
+
+# Wenn der Scanner absolut nichts findet, geben wir eine klare Warnung aus.
+if not st.session_state.aktives_modell:
+    st.error("🚨 Dein API-Key hat aktuell keine Freigabe für Google-Modelle. (Oft passiert das bei neuen Accounts im EU-Raum).")
+    st.stop()
+
+# Wir starten die KI genau mit dem Modell, das der Scanner gefunden hat
+model = genai.GenerativeModel(st.session_state.aktives_modell)
+
+# ==========================================
+# Rest der Tracker-App
+# ==========================================
 heute = datetime.now().strftime("%Y-%m-%d")
 
 if 'datum' not in st.session_state or st.session_state.datum != heute:
     st.session_state.datum = heute
     st.session_state.mahlzeiten = []
 
-# Seitenleiste
 with st.sidebar:
     st.header("⚙️ Einstellungen")
+    # Hier zeigen wir dir zur Kontrolle an, welches Modell der Scanner gefunden hat!
+    st.success(f"Aktives KI-Modell:\n{st.session_state.aktives_modell.replace('models/', '')}")
     kcal_ziel = st.number_input("Dein Tagesziel (kcal):", min_value=1000, max_value=5000, value=2500, step=100)
 
 st.title("🍏 Mein Ernährungs-Tracker")
@@ -47,7 +87,6 @@ if st.button("Hinzufügen"):
     if user_input:
         with st.spinner("KI berechnet die Nährwerte..."):
             try:
-                # Strengerer Prompt für das Pro-Modell
                 prompt = f"""
                 Du bist ein professioneller Ernährungsberater. Schätze die Nährwerte für den folgenden Input ab.
                 Input: "{user_input}"
@@ -58,7 +97,6 @@ if st.button("Hinzufügen"):
                 antwort = model.generate_content(prompt)
                 text = antwort.text
                 
-                # Kugelsicheres Auslesen der Daten (ignoriert alles, was kein JSON ist)
                 start = text.find('{')
                 end = text.rfind('}') + 1
                 
@@ -72,10 +110,10 @@ if st.button("Hinzufügen"):
                     st.session_state.mahlzeiten.append(werte)
                     st.rerun()
                 else:
-                    st.error("Fehler beim Lesen der KI-Antwort. Bitte versuche es noch einmal.")
+                    st.error("Fehler beim Auslesen der Werte.")
                 
             except Exception as e:
-                st.error(f"Fehler: {e}")
+                st.error(f"Fehler bei der Berechnung: {e}")
     else:
         st.warning("Bitte gib erst etwas ein.")
 
