@@ -56,9 +56,7 @@ if st.button("Hinzufügen"):
                 
                 antwort = model.generate_content(prompt)
                 
-                # UPDATE: Hier säubern wir die KI-Antwort, falls sie unsichtbare Formatierungen enthält
-                clean_text = antwort.text.replace("```json", "").replace("
-```", "").strip()
+                clean_text = antwort.text.replace("```json", "").replace("```", "").strip()
                 werte = json.loads(clean_text)
                 
                 jetzt = datetime.now().strftime("%H:%M")
@@ -68,7 +66,6 @@ if st.button("Hinzufügen"):
                 st.rerun()
                 
             except Exception as e:
-                # UPDATE: Hier lassen wir uns den echten Fehler anzeigen!
                 st.error(f"Fehler: {e}")
     else:
         st.warning("Bitte gib erst etwas ein.")
